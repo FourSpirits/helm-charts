@@ -434,6 +434,16 @@ exports:
       targetMemory: 80
       metrics: []
 
+    authPolicy:
+      enabled: false
+      provider:
+        name: ""
+        # name: "authentik"
+      rules:
+        - to:
+            - operation:
+                hosts: []
+                # hosts: ["plex.example.com"]
     ## Configure the ConfigMap resource that allows you to store non-confidential data in key-value pairs.
     ## ref: https://kubernetes.io/docs/concepts/configuration/configmap/
     ##

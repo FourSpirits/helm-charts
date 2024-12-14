@@ -1,0 +1,23 @@
+{{- define "helmet.authorizationpolicy" -}}
+{{- if .Values.authPolicy.enabled }}
+---
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: {{ include "common.names.fullname" . }}-authorization
+  namespace: {{ include "common.names.namespace" . | quote }}
+  labels: {{- include "common.labels.standard" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels: {{- include "common.labels.matchLabels" . | nindent 6 }}
+  action: {{ .Values.authPolicy.action | default "CUSTOM" }}
+  {{- if .Values.authPolicy.provider }}
+  provider:
+    {{- toYaml .Values.authPolicy.provider | nindent 4 }}
+  {{- end }}
+  {{- if .Values.authPolicy.rules }}
+  rules:
+    {{- toYaml .Values.authPolicy.rules | nindent 2 }}
+  {{- end }}
+{{- end }}
+{{- end }}
