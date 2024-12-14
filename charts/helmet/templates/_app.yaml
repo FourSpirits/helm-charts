@@ -1,29 +1,23 @@
 {{- define "helmet.app" -}}
-{{- if .Values.configMap.data }}
-{{ include "helmet.configmap" . }}
-{{- end }}
 
 {{- if .Values.authPolicy.enabled }}
 {{ include "helmet.authpolicy" . }}
 {{- end }}
 
-{{- if .Values.image.repository }}
-{{ include "helmet.deployment" . }}
+# Istio virtual service.
+{{- if .Values.virtualService.enabled -}}
+{{ include "helmet.virtualservice" . }}
 {{- end }}
 
-{{ include "helmet.hpa" . }}
-{{ include "helmet.ingress" . }}
-
-{{- if or .Values.secret.data .Values.secret.stringData }}
-{{ include "helmet.secret" . }}
+# Cleanup storage
+{{- if .Values.cleanup.enabled }}
+{{ include "helmet.cleanup" . }}
 {{- end }}
 
-{{ include "helmet.tls.secrets" . }}
-{{ include "helmet.tls.selfsigned" . }}
-
-{{- if and .Values.ports .Values.service.ports }}
-{{ include "helmet.service" . }}
+{{- if .Values.persistence.enabled }}
+{{ include "helmet.storage" . }}
 {{- end }}
+
 
 {{ include "helmet.serviceaccount" . }}
 {{ include "helmet.servicemonitor" . }}

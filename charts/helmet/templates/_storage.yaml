@@ -1,0 +1,116 @@
+{{- define "helmet.storage" -}}
+{{- if .Values.persistence.enabled }}
+{{- range .Values.persistence.volumes }}
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: {{ include "common.names.fullname" $ }}-{{ .name }}-pv
+  labels:
+    type: {{ include "common.names.fullname" $ }}-{{ .name }}-{{ .storageType | default "nfs" }}
+    {{- include "common.labels.standard" $ | nindent 4 }}
+    {{- if .labels }}
+    {{- toYaml .labels | nindent 4 }}
+    {{- end }}
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=true
+    argocd.argoproj.io/sync-wave: "0"
+    {{- if .annotations }}
+    {{- toYaml .annotations | nindent 4 }}
+    {{- end }}
+spec:
+  capacity:
+    storage: {{ .size | quote }}
+  accessModes:
+    {{- toYaml .accessModes | nindent 4 }}
+  {{- if .mountOptions }}
+  mountOptions:
+    {{- toYaml .mountOptions | nindent 4 }}
+  {{- end }}
+  persistentVolumeReclaimPolicy: {{ .reclaimPolicy | default "Retain" }}
+  storageClassName: {{ .storageClassName }}
+  {{- if eq (.storageType | default "nfs") "nfs" }}
+  nfs:
+    server: {{ .nfs.server }}
+    path: {{ .nfs.path }}
+  {{- end }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "common.names.fullname" $ }}-{{ .name }}-claim
+  namespace: {{ include "common.names.namespace" $ | quote }}
+  labels: {{- include "common.labels.standard" $ | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=true
+    argocd.argoproj.io/sync-wave: "1"
+    {{- if .annotations }}
+    {{- toYaml .annotations | nindent 4 }}
+    {{- end }}
+spec:
+  storageClassName: {{ .storageClassName }}
+  accessModes:
+    {{- toYaml .accessModes | nindent 4 }}
+  resources:
+    requests:
+      storage: {{ .size | quote }}
+  selector:
+    matchLabels:
+      type: {{ include "common.names.fullname" $ }}-{{ .name }}-{{ .storageType | default "nfs" }}
+{{- end }}
+{{- end }}
+{{- end }}
+
+{{- define "helmet.cleanup" -}}
+{{/* First check if any NFS volumes exist */}}
+{{- $hasNFSVolumes := false }}
+{{- range $key, $value := .Values.persistence.volumes }}
+{{- if eq (default "nfs" $value.storageType) "nfs" }}
+{{- $hasNFSVolumes = true }}
+{{- end }}
+{{- end }}
+{{- if and .Values.cleanup.enabled .Values.persistence.enabled $hasNFSVolumes }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "common.names.fullname" . }}-nfs-cleanup
+  namespace: {{ include "common.names.namespace" . | quote }}
+  labels: {{- include "common.labels.standard" . | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: HookSucceeded
+    argocd.argoproj.io/sync-wave: "-1"
+    {{- if .Values.cleanup.annotations }}
+    {{- toYaml .Values.cleanup.annotations | nindent 4 }}
+    {{- end }}
+spec:
+  ttlSecondsAfterFinished: {{ .Values.cleanup.ttlSecondsAfterFinished | default 100 }}
+  template:
+    spec:
+      serviceAccountName: {{ include "helmet.serviceAccountName" . }}
+      nodeSelector:
+        node-role.kubernetes.io/master: "true"
+      tolerations:
+        - key: node-role.kubernetes.io/master
+          effect: NoSchedule
+      containers:
+      - name: kubectl
+        image: {{ .Values.cleanup.image | default "bitnami/kubectl:latest" }}
+        command:
+          - /bin/sh
+          - -c
+          - |
+            {{- range $key, $value := .Values.persistence.volumes }}
+            {{- if eq (default "nfs" $value.storageType) "nfs" }}
+            if kubectl get pv {{ include "common.names.fullname" $ }}-{{ $key }}-pv &>/dev/null; then
+              echo "Cleaning up NFS PV {{ include "common.names.fullname" $ }}-{{ $key }}-pv"
+              kubectl patch pv {{ include "common.names.fullname" $ }}-{{ $key }}-pv -p '{"spec":{"claimRef": null}}'
+            else
+              echo "NFS PV {{ include "common.names.fullname" $ }}-{{ $key }}-pv not found, skipping"
+            fi
+            {{- end }}
+            {{- end }}
+      restartPolicy: {{ .Values.cleanup.restartPolicy | default "OnFailure" }}
+{{- end }}
+{{- end }}

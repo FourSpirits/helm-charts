@@ -3,16 +3,16 @@ name: helmet
 description: Helmet is a library Helm Chart for grouping common logics. This chart is not deployable by itself.
 home: https://github.com/companyinfo/helm-charts/blob/main/charts/helmet
 type: library
-version: "0.11.0"
-appVersion: "0.11.0"
+version: "0.0.1"
+appVersion: "0.0.1"
 keywords:
   - common
   - helper
   - template
   - function
 maintainers:
-  - name: Company.info Developers
-    url: https://company.info
+  - name: jingkai
+    url: https://jingk.ai
 dependencies:
   - name: common
     version: "2.6.0"
